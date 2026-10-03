@@ -62,7 +62,8 @@ final class PromptInspectionTests: XCTestCase {
         let agent = try XCTUnwrap(agents.first)
         let preview = try await s.runtime.inspectPrompt(agent.id)
         XCTAssertTrue(preview.systemPrompt.contains(HouseRules.default))
-        XCTAssertFalse(preview.systemPrompt.contains(ContextBuilder.workingAlongsideRules), "the chat hands the web and the Mac to threads")
+        // No Pennant chat (it's off by default in this fork): the preview is a thread's, which works beside the owner.
+        XCTAssertTrue(preview.systemPrompt.contains(ContextBuilder.workingAlongsideRules))
         await s.stop()
     }
 

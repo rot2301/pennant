@@ -19,6 +19,7 @@ final class PennantChatTests: XCTestCase {
         var config = HostConfig()
         config.workingDirectory = paths.root.path
         config.desktop.pauseOnHumanInput = false
+        config.pennantChat = true
         let s = try HostService(paths: paths, config: config, desktop: FakeDesktop(), humanInput: NullHumanInput(), provider: provider)
         try await s.start(startAPI: false)
         return s

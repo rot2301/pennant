@@ -56,14 +56,6 @@ public actor HostService: HostAPIDelegate {
                     default: continue
                     }
                 }
-            case .taskTransition(let t) where t.to == .completed:
-                // Pennant mentioned something on its own (a heartbeat): that reaches the phone too.
-                guard let task = try? await store.task(t.taskID), TaskRuntime.isHeartbeat(task),
-                      let said = task.resultSummary?.trimmingCharacters(in: .whitespacesAndNewlines), !said.isEmpty, !TaskRuntime.saysNothing(said) else { continue }
-                let name = (try? await store.agent(task.agentID))?.name ?? "Pennant"
-                let who = await pushRecipients(conversationID: task.conversationID, taskID: task.id)
-                await push.notify(title: name, body: Conversation.previewLine(said, limit: 240), to: who, key: "heartbeat:\(task.id.rawValue)",
-                                  info: ["agentID": task.agentID.rawValue, "conversationID": task.conversationID.rawValue], thread: task.conversationID.rawValue)
             case .taskTransition(let t) where t.to == .waitingForUser:
                 guard let task = try? await store.task(t.taskID) else { continue }
                 let reason = task.stateReason
@@ -139,8 +131,6 @@ public actor HostService: HostAPIDelegate {
     public let mcp: MCPManager
     public let chatGPT: ChatGPTAuthManager
     public let scheduler: Scheduler
-    /// Pennant waking up on its own to look over its work (and start goal sessions).
-    public let heartbeat: Heartbeat
     /// Pennant's extension in the owner's Chrome, and the sites they let it work on there.
     public let chrome: BrowserLink
     public let chromeSites: ChromeSites
@@ -233,7 +223,6 @@ public actor HostService: HostAPIDelegate {
         }
         self.runtime = TaskRuntime(runtimeDeps)
         self.scheduler = Scheduler(store: store, eventBus: eventBus, runtime: runtime)
-        self.heartbeat = Heartbeat(runtime: runtime, scheduler: scheduler, settings: config.heartbeat)
         self.chrome = chromeLink
         self.chromeSites = ChromeSites(folder: paths.root)
         let goalStore = store
@@ -285,8 +274,8 @@ public actor HostService: HostAPIDelegate {
                                           updateAgent: { [unowned self] in try await self.saveAgentProfile($0) },
                                           setSkillStatus: { [unowned self] in try await self.setSkillStatus($0, $1) }).tools)
         try await ensureDefaultAgent()
-        // The Pennant chat: what every app opens on.
-        _ = try? await runtime.ensureMainChat()
+        // The Pennant chat when it's on (what every app opens on then); off, a chat left from before is a thread again.
+        await runtime.applyChatSetting()
         await BuiltinSkills.seed(store: store, eventBus: eventBus)
         await runtime.attach(scheduler: scheduler)
         await chatGPT.setOnChange { [weak self] in await self?.chatGPTAccountChanged() }
@@ -297,7 +286,6 @@ public actor HostService: HostAPIDelegate {
         await scheduler.setGoalPrompt { id, run in try await goalService.runPrompt(id, run: run) }
         await broker.register(GoalTools.all(goals: goals, store: store))
         await scheduler.start()
-        await heartbeat.start()
         if let source = ChromeExtension.bundled() {
             do {
                 let copy = try ChromeExtension.install(from: source, into: paths.root)
@@ -384,7 +372,6 @@ public actor HostService: HostAPIDelegate {
         pushWatch?.cancel()
         for m in monitors { m.cancel() }
         monitors = []
-        await heartbeat.stop()
         await chrome.stop()
         await scheduler.stop()
         await channels.stop()

@@ -8,7 +8,8 @@
 | --- | --- |
 | Store: events, tasks, messages, full-text search, memory graph, forgetting, embeddings, skills, backups, deleting conversations | `SQLiteStoreTests` |
 | The runtime: the tool loop with intent and outcome records, pause and resume, questions, takeover and the fresh-screen rule, recovery after a crash or a restart with read-back, helpers, compaction, task limits | `RuntimeTests`, `ApprovalTests` |
-| The Pennant chat: one chat that never closes, threads it starts, steers, reads and stops, news from them in Pennant's words (or kept quiet), drafts introduced, limits and wrap-up, its own task slot, each thread its own card source; the heartbeat (goal sessions when due, a look at stuck work, quiet beats free, a daily cap) | `PennantChatTests`, `WorkUpdateTests`, `HeartbeatTests`, `BrowserRunnerTests` |
+| This fork's default: no Pennant chat, threads written in directly, a chat left from 0.2.0 turned back into a thread | `DirectThreadsTests` |
+| The Pennant chat (with `pennantChat` on): one chat that never closes, threads it starts, steers, reads and stops, news from them in Pennant's words (or kept quiet), drafts introduced, limits and wrap-up, its own task slot, each thread its own card source | `PennantChatTests`, `WorkUpdateTests`, `BrowserRunnerTests` |
 | The owner's sign-offs, cards and what runs after an approval; coding runs on both engines and what they may do without asking; acting on GitHub only as the App | `SignOffTests`, `ApprovalTests`, `CodingRunTests`, `PennantEngineTests`, `CodingPermissionTests`, `GitHubIdentityTests`, `ClaudeCodeEngineTests` |
 | Memory: retrieval with citations, passages, aliases and removed names, upkeep | `MemoryRetrievalTests`, `MemoryKeeperTests` |
 | Skills (import, versions, git sources), teach mode, scheduled jobs, goals, reports, the health review | `SkillImportTests`, `TeachingTests`, `SchedulingTests`, `GoalTests`, `ReportTests`, `HealthToolsTests` |

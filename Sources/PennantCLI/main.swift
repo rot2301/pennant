@@ -35,8 +35,6 @@ func run(_ options: CLIOptions) async throws {
         try await codingCommand(options)
     case "threads":
         try await threadsCommand(options)
-    case "heartbeat":
-        try await heartbeatCommand(options)
     case "tool":
         try await toolCommand(options)
     case "agent":

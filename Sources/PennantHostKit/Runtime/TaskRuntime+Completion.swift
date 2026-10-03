@@ -85,8 +85,7 @@ extension TaskRuntime {
     }
 
     func complete(task id: TaskID, summary: String) async throws {
-        let done = try await updateTask(id) { $0.resultSummary = summary }
-        await clearQuietHeartbeat(done, reply: summary)
+        try await updateTask(id) { $0.resultSummary = summary }
         try await transition(id, to: .completed, reason: "Completed")
         await finish(task: id)
         // Keep what the exchange established, without holding up the reply.
@@ -95,7 +94,7 @@ extension TaskRuntime {
 
     /// Writes the durable facts a finished task established into memory (see `MemoryLearner`), and says so.
     private func learn(from id: TaskID, answer: String) async {
-        guard let task = try? await deps.store.task(id), task.parentTaskID == nil, !Self.isHeartbeat(task),
+        guard let task = try? await deps.store.task(id), task.parentTaskID == nil,
               let agent = try? await deps.store.agent(task.agentID),
               (try? await deps.store.conversation(task.conversationID))??.isCodingRun != true else { return }
         let messages = (try? await deps.store.messagesAfter(conversationID: task.conversationID, after: nil, limit: 400)) ?? []

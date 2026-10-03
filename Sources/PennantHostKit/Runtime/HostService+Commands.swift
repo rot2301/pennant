@@ -7,6 +7,8 @@ extension HostService {
 
     /// The task id the owner's hand-run tools (`pennant tool`) share.
     static let consoleTask = TaskID("owner-console")
+    /// Where they run when there's no Pennant chat.
+    static let consoleConversation = ConversationID("owner-console")
 
     public func handle(_ body: CommandBody, from client: ConnectedClient) async -> ReplyBody {
         do {
@@ -444,9 +446,13 @@ extension HostService {
         case .runTool(let name, let arguments):
             guard client.isOwner else { return .error(code: "owner_only", message: "Only the host's owner can run tools by hand.") }
             guard let tool = await broker.tool(named: name) else { return .error(code: "not_found", message: "No tool named \(name)") }
-            let chat = try await runtime.ensureMainChat()
+            // Run as Pennant: in its chat when there is one, else in a console conversation of its own.
+            let chat = try? await runtime.ensureMainChat()
+            var lead = chat?.agentID
+            if lead == nil { lead = await runtime.leadAgent()?.id }
+            guard let agentID = lead else { return .error(code: "unavailable", message: "Pennant isn't set up yet.") }
             // One console "task" for all of the owner's hand-run tools, so a screenshot's coordinates carry to the next call.
-            let context = ToolContext(agentID: chat.agentID, taskID: Self.consoleTask, conversationID: chat.id, store: store, desktop: desktop, lease: lease, config: config)
+            let context = ToolContext(agentID: agentID, taskID: Self.consoleTask, conversationID: chat?.id ?? Self.consoleConversation, store: store, desktop: desktop, lease: lease, config: config)
             let result = try await tool.invoke(arguments, context: context)
             var text = result.textContent
             for case .image(let ref) in result.content { text += "\n[image: artifact \(ref.artifactID.rawValue)]" }
@@ -700,8 +706,9 @@ extension HostService {
             let restart = newConfig.api != config.api || newConfig.embeddings != config.embeddings || newConfig.mode != config.mode
             config = newConfig
             try ConfigLoader.save(newConfig, to: paths.configURL)
+            let chatChanged = newConfig.pennantChat != config.pennantChat
             await runtime.updateConfig(newConfig)
-            await heartbeat.update(newConfig.heartbeat)
+            if chatChanged { await runtime.applyChatSetting() }
             await lease.setPauseOnHumanInput(newConfig.desktop.pauseOnHumanInput)
             if inferenceChanged {
                 switchableProvider.replace(Self.makeProvider(newConfig.inference, chatGPT: chatGPT, vault: vault))
