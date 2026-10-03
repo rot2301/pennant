@@ -234,10 +234,9 @@ public struct ComputerPanelView: View {
 
     // MARK: Routines and activity
 
-    /// Enabled jobs first, soonest next run first, then by name. A goal's sessions aren't routines you set: they're
-    /// the goal's (Pennant starts them on its heartbeat).
+    /// Enabled jobs first, soonest next run first, then by name.
     private var routineJobs: [ScheduledJob] {
-        session.state.schedules.filter { $0.goalID == nil }.sorted { a, b in
+        session.state.schedules.sorted { a, b in
             if a.enabled != b.enabled { return a.enabled }
             let na = a.nextRunAt ?? .distantFuture, nb = b.nextRunAt ?? .distantFuture
             if na != nb { return na < nb }

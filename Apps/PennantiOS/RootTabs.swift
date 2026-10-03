@@ -528,15 +528,6 @@ struct PhoneSettingsView: View {
             }
             .listRowBackground(PennantTheme.cardElevated)
 
-            if session.state.me == nil || session.state.me?.role == .owner {
-                Section {
-                    HeartbeatSettings()
-                } header: {
-                    SettingsHeader("Heartbeat")
-                }
-                .listRowBackground(PennantTheme.cardElevated)
-            }
-
             Section {
                 Toggle(isOn: Binding(
                     get: { session.state.desktop.pauseOnHumanInput },

@@ -48,33 +48,6 @@ func toolCommand(_ options: CLIOptions) async throws {
     if isError { exit(1) }
 }
 
-/// pennant heartbeat [on|off|every <minutes>|cap <n>]: Pennant checking in on its own.
-@MainActor
-func heartbeatCommand(_ options: CLIOptions) async throws {
-    let session = try await connect(options)
-    var c = try await session.getConfig().config
-    let args = options.args.map { $0.lowercased() }
-    switch args.first {
-    case nil: break
-    case "on": c.heartbeat.enabled = true
-    case "off": c.heartbeat.enabled = false
-    case "every" where args.count > 1:
-        guard let minutes = Int(args[1].trimmingCharacters(in: CharacterSet(charactersIn: "m"))), minutes >= 5 else {
-            await session.disconnect(); fail("Usage: pennant heartbeat every <minutes> (at least 5)")
-        }
-        c.heartbeat.intervalMinutes = minutes
-    case "cap" where args.count > 1:
-        guard let n = Int(args[1]), n >= 1 else { await session.disconnect(); fail("Usage: pennant heartbeat cap <check-ins a day>") }
-        c.heartbeat.maxTurnsPerDay = n
-    default:
-        await session.disconnect(); fail("Usage: pennant heartbeat [on|off|every <minutes>|cap <n>]")
-    }
-    if args.first != nil { _ = try await session.updateConfig(c) }
-    await session.disconnect()
-    let h = c.heartbeat
-    out(h.enabled ? "Pennant checks in every \(h.intervalMinutes) minutes, and stops to think at most \(h.maxTurnsPerDay) times a day. Goals run on it." : "Heartbeat off: goals run on their own schedules.")
-}
-
 @MainActor
 func threadsCommand(_ options: CLIOptions) async throws {
     let session = try await connect(options)

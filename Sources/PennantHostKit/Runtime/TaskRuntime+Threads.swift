@@ -11,9 +11,11 @@ extension TaskRuntime {
         return agents.first { $0.name == HostService.defaultAgentName && $0.kind == .persistent } ?? agents.first { $0.kind == .persistent }
     }
 
-    /// The Pennant chat, made the first time it's needed.
+    /// The Pennant chat, made the first time it's needed. Throws when it's off (`HostConfig.pennantChat`): then nothing
+    /// is in the chat, nothing reports to it, and every thread is one the owner writes in.
     @discardableResult
     public func ensureMainChat() async throws -> Conversation {
+        guard deps.config.pennantChat else { throw ToolError.failed("The Pennant chat is off on this host: threads are started and written in directly.") }
         if let id = mainChatID, let c = try await deps.store.conversation(id), c.isMain { return c }
         guard let lead = await leadAgent() else { throw ToolError.failed("Pennant isn't set up yet") }
         if let found = try await deps.store.listConversations(agentID: lead.id).first(where: \.isMain) {
@@ -26,6 +28,34 @@ extension TaskRuntime {
         await publish(.conversationUpserted(chat))
         mainChatID = chat.id
         return chat
+    }
+
+    /// Brings the host in line with `HostConfig.pennantChat`, at start and when it changes. On: the chat exists. Off: a
+    /// chat left from 0.2.0 becomes an ordinary thread again, with its history, and the threads it started come out
+    /// from under it into the list, where they're written in directly. Its coding runs stay under it, as a coding run
+    /// stays under the thread that asked for it.
+    public func applyChatSetting() async {
+        if deps.config.pennantChat {
+            _ = try? await ensureMainChat()
+            return
+        }
+        mainChatID = nil
+        boardCache = nil
+        guard let lead = await leadAgent(), let conversations = try? await deps.store.listConversations(agentID: lead.id) else { return }
+        for chat in conversations where chat.isMain {
+            let name = lead.name
+            if let thread = try? await deps.store.mutateConversation(chat.id, { c in
+                c.isMain = false
+                if c.title == name { c.title = "\(name) chat" }
+            }) {
+                await publish(.conversationUpserted(thread))
+            }
+            for child in conversations where child.parentID == chat.id && !child.isCodingRun {
+                if let thread = try? await deps.store.mutateConversation(child.id, { $0.parentID = nil }) {
+                    await publish(.conversationUpserted(thread))
+                }
+            }
+        }
     }
 
     /// Whether a task runs in the Pennant chat.
@@ -172,88 +202,6 @@ extension TaskRuntime {
            let conversation = try await deps.store.conversation(task.conversationID), !conversation.isMain { return conversation }
         throw ToolError.invalidArguments("No thread \(key). The work board in your context lists them with their ids.")
     }
-
-    // MARK: Heartbeat
-
-    /// How a heartbeat's turn starts its objective (the brief follows).
-    static let heartbeatLead = "[Heartbeat] "
-
-    static func isHeartbeat(_ task: TaskRecord) -> Bool { task.objective.hasPrefix(heartbeatLead) }
-
-    /// A heartbeat found something to look at: Pennant takes one turn in its chat, on its own, to deal with it or tell
-    /// the owner. Nothing to do or say leaves no trace (see `complete`). Nil when the chat is busy.
-    func heartbeatTurn(brief: String) async throws -> TaskID? {
-        let chat = try await ensureMainChat()
-        let busy = try await deps.store.listTasks(agentID: nil, includeFinished: false).contains { $0.conversationID == chat.id && !$0.state.isTerminal }
-        guard !busy else { return nil }
-        let objective = Self.heartbeatLead + """
-        You're checking in on your own; the owner didn't write. Since your last look:
-        \(brief)
-        Decide what, if anything, to do about it. Nudge or stop work that's stuck (message_thread, stop_thread), or \
-        tell the owner something they'd want to know now, in a line or two, the way you'd mention it in passing. \
-        Don't remind them of something you already told them today. If nothing needs doing or saying, reply with \
-        exactly \(Self.nothingToSay): they won't see this check.
-        """
-        let task = TaskRecord(agentID: chat.agentID, conversationID: chat.id, title: "Checking in", objective: objective, completionCriteria: "",
-                              budget: TaskBudget(maxSteps: 8, maxTokens: 200_000, maxDuration: 600, maxDelegations: 0))
-        try await deps.store.upsertTask(task)
-        await publish(.taskUpserted(task))
-        await schedule()
-        return task.id
-    }
-
-    /// A heartbeat turn that had nothing to say leaves nothing in the chat.
-    func clearQuietHeartbeat(_ task: TaskRecord, reply: String) async {
-        guard Self.isHeartbeat(task), Self.saysNothing(reply) else { return }
-        let messages = (try? await deps.store.listMessages(conversationID: task.conversationID, before: nil, limit: 40)) ?? []
-        let quiet = messages.filter { $0.taskID == task.id && $0.role == .assistant && !$0.text.isEmpty && Self.saysNothing($0.text) }.map(\.id)
-        if !quiet.isEmpty { await removeMessages(quiet, in: task.conversationID) }
-    }
-
-    /// Whether the work a goal job runs is waiting on the owner: a question or a card in the goal's thread, or in its
-    /// latest session's.
-    func goalWaitsOnOwner(_ job: ScheduledJob) async -> Bool {
-        var places = Set<ConversationID>()
-        if let c = job.conversationID { places.insert(c) }
-        if let goalID = job.goalID, let goal = (await deps.goals?() ?? []).first(where: { $0.id == goalID }), let c = goal.conversationID { places.insert(c) }
-        if let last = job.lastTaskID, let task = try? await deps.store.task(last) { places.insert(task.conversationID) }
-        guard !places.isEmpty else { return false }
-        let open = (try? await deps.store.listTasks(agentID: nil, includeFinished: false)) ?? []
-        if open.contains(where: { places.contains($0.conversationID) && $0.state == .waitingForUser }) { return true }
-        let cards = (try? await pendingApprovals()) ?? []
-        return cards.contains { places.contains($0.conversationID) }
-    }
-
-    /// What a heartbeat should look at in Pennant's threads: work that stopped moving, and questions or drafts left
-    /// waiting on the owner for hours. Each comes with a key, so the same thing isn't raised on every beat.
-    func heartbeatSignals(now: Date = Date()) async -> [(key: String, text: String)] {
-        var out: [(key: String, text: String)] = []
-        let chat = try? await ensureMainChat()
-        let open = (try? await deps.store.listTasks(agentID: nil, includeFinished: false)) ?? []
-        let ago = RelativeDateTimeFormatter()
-        for task in open where task.parentTaskID == nil && task.conversationID != chat?.id {
-            guard let thread = try? await deps.store.conversation(task.conversationID), !thread.isMain else { continue }
-            let label = "“\(thread.title)” (thread \(thread.id.rawValue.prefix(8)))"
-            switch task.state {
-            case .running, .waitingForTool:
-                if now.timeIntervalSince(task.updatedAt) > Self.stalledAfter {
-                    out.append(("stalled:\(task.id.rawValue)", "\(label) hasn't moved since \(ago.localizedString(for: task.updatedAt, relativeTo: now)) (\(task.usage.steps) steps so far)."))
-                }
-            case .waitingForUser:
-                if now.timeIntervalSince(task.updatedAt) > Self.waitingTooLong {
-                    out.append(("waiting:\(task.id.rawValue)", "\(label) has waited on the owner since \(ago.localizedString(for: task.updatedAt, relativeTo: now)): \(Self.stateWords(task))."))
-                }
-            default:
-                break
-            }
-        }
-        return out
-    }
-
-    /// Work with no step for this long has stopped moving.
-    static let stalledAfter: TimeInterval = 20 * 60
-    /// A question or draft left this long is worth a mention.
-    static let waitingTooLong: TimeInterval = 6 * 3600
 
     // MARK: The work board
 

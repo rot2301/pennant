@@ -2,6 +2,9 @@
 
 **The AI agent that does the work.**
 
+> **This fork** keeps Pennant 0.2.0's features but brings back the threads from before it: you start threads and write in
+> them yourself, with no Pennant chat in between, and there's no heartbeat. See [FORK.md](FORK.md).
+
 Pennant is a free, open-source AI agent that lives on your Mac, with an iPhone companion. Give it jobs in plain words: it
 triages the inbox, writes the posts, watches production and fixes the code, on your schedule and with whatever model you
 choose. Before it publishes, sends, deletes or spends, it hands you a card and waits for your OK.
@@ -33,9 +36,8 @@ choose. Before it publishes, sends, deletes or spends, it hands you a card and w
 
 ## What it does
 
-- **One chat with Pennant.** The Mac and iPhone apps open on a single conversation with Pennant. It answers what's quick and
-  starts a thread for the rest (using the computer, research, a coding change), and the threads' results, questions and
-  cards come back to the chat, where you decide them. You can read any thread, but you only ever talk to Pennant.
+- **Threads you write in.** Start a thread for each piece of work and talk to Pennant right there: add to it, change it or
+  answer its questions in the same thread, any time. Questions and cards that need you are at the top of the list.
 - **Jobs on a schedule.** "Every weekday at 8:30", "hourly" or cron. Each job follows a skill, every run gets a thread of its
   own, and a run ends in a report card rather than a wall of text. Big jobs bring in helpers on a cheaper model.
 - **Nothing goes out without you.** Publishing, sending email, deleting and spending always stop at an approval card, whatever
@@ -43,8 +45,6 @@ choose. Before it publishes, sends, deletes or spends, it hands you a card and w
   reject it, on the Mac or the iPhone. Cards written in Markdown show formatted, with the plain text a click away.
 - **Goals.** Outcomes Pennant works toward on its own, with a measure, a weekly budget and a board of what's next, waiting on
   you, in progress and done, and a weekly review. Start, pause, edit or delete any goal yourself, or approve the ones it proposes.
-- **A heartbeat.** Every 30 minutes (you choose) Pennant looks over its work: it starts the goal sessions that are due, and if
-  something is stuck or has waited on you too long, it deals with it or tells you. A look with nothing in it costs nothing.
 - **Coding.** Code changes go to a coding run in one of your project folders, in a thread of its own: Claude Code,
   or Pennant's own engine on any of your models. Runs push and open pull requests as their own GitHub App, never as you, and
   can plan first or ask before every edit.
@@ -63,7 +63,7 @@ choose. Before it publishes, sends, deletes or spends, it hands you a card and w
   it watches.
 - **Connections.** A catalogue of MCP servers (GitHub, Notion, Linear, Sentry, Stripe, Figma, Supabase and more) with one
   Connect button each, and Microsoft 365, LinkedIn and Reddit built in.
-- **On your iPhone.** The Pennant chat, approvals, threads, reports, memory and the Mac's screen, live, from an app that signs
+- **On your iPhone.** Threads, approvals, reports, memory and the Mac's screen, live, from an app that signs
   in to your own Mac.
 
 ## Built for the ways agents fail
@@ -112,7 +112,7 @@ Pennant has no account with us, no telemetry and no cloud of its own.
 
 | Shortcut | Action |
 |---|---|
-| **⌘N** | The Pennant chat |
+| **⌘N** | New thread |
 | **⌘1** | Dashboard |
 | **⇧⌘K** | Every conversation, in a window of its own |
 | **⇧⌘W** | Close the thread you're reading |

@@ -274,15 +274,17 @@ struct ConversationWindow: View {
 
 /// Window › Conversations (⇧⌘K).
 extension Notification.Name {
-    /// File › Talk to Pennant: the main window opens the Pennant chat (on a host from before it, a new thread).
+    /// File › New Thread: the main window opens a new thread (with the Pennant chat on, the chat).
     static let pennantNewThread = Notification.Name("dev.pennant.newThread")
 }
 
-/// File › Talk to Pennant (⌘N): the Pennant chat in the main window, which comes back if it was closed.
+/// File › New Thread (⌘N): a new thread in the main window, which comes back if it was closed. With the Pennant chat
+/// on (`HostConfig.pennantChat`), File › Talk to Pennant opens the chat instead.
 struct NewThreadCommand: View {
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.hostSession) private var session
     var body: some View {
-        Button("Talk to Pennant") {
+        Button(session.state.mainConversation == nil ? "New Thread" : "Talk to Pennant") {
             openWindow(id: "main")
             NotificationCenter.default.post(name: .pennantNewThread, object: nil)
         }
