@@ -8,17 +8,26 @@ public struct PennantMarkdown: View {
     var onDark: Bool
     /// Body text size at 100%; nil: the size replies use.
     var size: CGFloat?
+    /// Selectable (the default). A reply still streaming in isn't: on macOS 27, selectable text that's laid out again
+    /// on every token can end up drawn upside down until the app restarts. Switching to selectable once it's done
+    /// builds a fresh view, so no stale drawing survives.
+    var selectable: Bool
 
-    public init(_ text: String, onDark: Bool = false, size: CGFloat? = nil) {
+    public init(_ text: String, onDark: Bool = false, size: CGFloat? = nil, selectable: Bool = true) {
         self.text = text
         self.onDark = onDark
         self.size = size
+        self.selectable = selectable
     }
 
     public var body: some View {
-        Markdown(text)
+        let markdown = Markdown(text)
             .markdownTheme(.pennant(onDark ? .onDark : .standard, bodySize: (size ?? bodySize) * PennantZoom.shared.factor))
-            .textSelection(.enabled)
+        if selectable {
+            markdown.textSelection(.enabled)
+        } else {
+            markdown
+        }
     }
 }
 

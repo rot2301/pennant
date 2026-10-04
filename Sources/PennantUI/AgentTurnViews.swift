@@ -198,6 +198,8 @@ struct AgentText: View {
     var text: String
     var agent: AgentProfile? = nil
     var showsName = false
+    /// Still streaming in: not selectable yet (see `PennantMarkdown.selectable`).
+    var streaming = false
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
@@ -208,7 +210,7 @@ struct AgentText: View {
                     Text(agent.name).font(.zoomed(.caption).weight(.semibold)).foregroundStyle(PennantTheme.inkSecondary)
                 }
             }
-            PennantMarkdown(text)
+            PennantMarkdown(text, selectable: !streaming)
                 .tint(PennantTheme.brandInk)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)

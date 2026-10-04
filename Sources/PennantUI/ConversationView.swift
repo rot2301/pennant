@@ -250,7 +250,7 @@ public struct ConversationView: View {
                                     .padding(.top, afterAgent ? 6 : 14)
                             case .agentText(let text, let message, let time):
                                 VStack(alignment: .leading, spacing: 4) {
-                                    AgentText(text: text, agent: session.state.agent(agentID), showsName: Self.firstTextOfTurn(entries, at: index))
+                                    AgentText(text: text, agent: session.state.agent(agentID), showsName: Self.firstTextOfTurn(entries, at: index), streaming: message.isStreaming)
                                     if time {
                                         HStack(spacing: 4) {
                                             MessageTime(date: message.createdAt, stats: message.stats)
